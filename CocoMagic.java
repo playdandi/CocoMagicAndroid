@@ -88,14 +88,25 @@ public class CocoMagic extends Cocos2dxActivity{
     	regId = id;
     }
     
-    public void StartIAB()
+    public static void StartIAB(int type, String productId, String payload)
     {
     	// 팝업으로 사용할 액티비티를 호출할 인텐트를 작성한다.
 		Intent intent = new Intent(activity, InAppBilling.class);
+		intent.putExtra("type", type);
+		intent.putExtra("productId", productId);
+		intent.putExtra("payload", payload);
 		activity.startActivity(intent);
     }
+    
+    /*public void verifyPurchase(String data, String signature)
+    {
+    	Log.e("verifyPurchase", "hihi");
+    	verifyPayloadAndProvideItem(data, signature);
+    }*/
 
     static {
         System.loadLibrary("cocos2dcpp");
-    }     
+    }
+    
+    //private native void verifyPayloadAndProvideItem(String data, String signature);
 }
