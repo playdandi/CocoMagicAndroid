@@ -1,7 +1,20 @@
 package com.playDANDi.CocoMagic;
 
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.List;
 
+import org.apache.http.HttpResponse;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.protocol.HTTP;
+import org.apache.http.util.EntityUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -29,10 +42,13 @@ public class InAppBilling extends Activity {
 	CocoMagic parentActivity;
 	
 	static int type; // 0 : 앱 초기실행 시  ,  1 : 구매를 시도할 경우
+	static int kakaoId;
+	static int topazId;
 	static String productId;
 	static String payload;	 
 	
 	public native void verifyPayloadAndProvideItem(String data, String signature, int topazCount);
+	public native void sendResultToCocos2dx(String response, int size);
 	 
 	// Binding to IInAppBillingService (to establish a connection with IAB service on GooglePlay)
     ServiceConnection mServiceConn = new ServiceConnection() {
@@ -57,8 +73,11 @@ public class InAppBilling extends Activity {
 		
 		Intent intent = getIntent();
 		type = intent.getIntExtra("type", 1);
+		kakaoId = intent.getIntExtra("kakaoId", -1);
+		topazId = intent.getIntExtra("topazId", -1);
 		productId = intent.getStringExtra("productId");
 		payload = intent.getStringExtra("payload");
+		
 		
 		
 		// perform the binding (after that, we can use mService ref. to communicate with the Google Play service)
@@ -81,7 +100,7 @@ public class InAppBilling extends Activity {
 		        	return;
 		 
 		        // IAB 셋업이 완료되었습니다.
-		        //Log.d("IAB", "Setup successful. Querying inventory.");
+		        Log.d("IAB", "Setup successful. (type = " + type + ")");
 		        
 		        if (type == 0) // 앱을 처음 실행한 경우 (소진되지 않은 상품 확인용)
 		        	mHelper.queryInventoryAsync(mGotInventoryListener);
@@ -94,6 +113,7 @@ public class InAppBilling extends Activity {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
 					}
+			        
 		        	Buy();
 		        }
 			}
@@ -170,7 +190,7 @@ public class InAppBilling extends Activity {
 	// 제품 구매 구글 결제 팝업창을 띄우는 함수
 	public void Buy() {
 		try {
-			Log.e("method", "Buy start (product id = " + productId);
+			Log.e("method", "Buy start (productId = " + productId + "), (kakaoId = " + kakaoId + "), (topazId = " + topazId + ")");
 			
 			//String sku = "android.test.purchased";
 			//mHelper.launchPurchaseFlow(this, sku, 1001, mPurchaseFinishedListener, payload);
@@ -200,7 +220,7 @@ public class InAppBilling extends Activity {
 	IabHelper.OnIabPurchaseFinishedListener mPurchaseFinishedListener = new IabHelper.OnIabPurchaseFinishedListener() {
 	    public void onIabPurchaseFinished(IabResult result, Purchase purchase) {
 	        Log.e("Purchase Result ", "result: " + result + ", purchase: " + purchase);
-	        
+
 	        VerifyToServer(purchase);
 	    }
 	};	
@@ -208,18 +228,18 @@ public class InAppBilling extends Activity {
 	
 	public void VerifyToServer(Purchase purchase)
 	{
-		String purchasedData = purchase.getOriginalJson();
-        String dataSignature = purchase.getSignature();
-        dataSignature = dataSignature.replace("+", "-");
+		final String purchasedData = purchase.getOriginalJson();
+        final String dataSignature = purchase.getSignature().replace("+",  "-");
         
         Log.d("data", purchasedData);
         Log.d("sign", dataSignature);
         
+        /*
         int topazCount = -1;
 		try {
 			JSONObject jo = new JSONObject(purchasedData);
 			String productId = jo.getString("productId");
-			//productId = "topaz390";
+			productId = "topaz390";
 			productId = productId.replace("topaz", "");
 			topazCount = Integer.parseInt(productId);
 			
@@ -227,11 +247,58 @@ public class InAppBilling extends Activity {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+		*/
 	
         purchased = purchase;
         
+        Thread thread = new Thread() {
+            @Override
+            public void run() {
+                HttpClient httpClient = new DefaultHttpClient();
+
+                String urlString = "http://14.63.225.203/cogma/game/purchase_topaz_google.php";
+                try {
+                    URI url = new URI(urlString);
+
+                    HttpPost httpPost = new HttpPost();
+                    httpPost.setURI(url);
+
+                    
+                    List<BasicNameValuePair> nameValuePairs = new ArrayList<BasicNameValuePair>(2);
+                    nameValuePairs.add(new BasicNameValuePair("kakao_id", String.valueOf(kakaoId)));
+                    nameValuePairs.add(new BasicNameValuePair("topaz_id", String.valueOf(topazId)));
+                    nameValuePairs.add(new BasicNameValuePair("purchase_data", purchasedData));
+                    nameValuePairs.add(new BasicNameValuePair("signature", dataSignature));
+                   
+                    httpPost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
+
+                    HttpResponse response = httpClient.execute(httpPost);
+                    String responseString = EntityUtils.toString(response.getEntity(), HTTP.UTF_8);
+                    
+                    int size = responseString.length();
+                    Log.e("response", responseString);
+                    Log.e("response", "size = " + size);
+                    
+                    sendResultToCocos2dx(responseString, size);
+
+                } catch (URISyntaxException e) {
+                    Log.e("http thread", e.getLocalizedMessage());
+                    e.printStackTrace();
+                } catch (ClientProtocolException e) {
+                    Log.e("http thread", e.getLocalizedMessage());
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    Log.e("http thread", e.getLocalizedMessage());
+                    e.printStackTrace();
+                }
+            }
+        };
+        
+        thread.start();
+        
+        
 		// cocos2d-x에서 구매 검증 프로토콜을 서버로 보낸다.
-        verifyPayloadAndProvideItem(purchasedData, dataSignature, topazCount);
+        //verifyPayloadAndProvideItem(purchasedData, dataSignature, topazCount);
  
         /*
         if (result.isFailure()) {
@@ -245,6 +312,7 @@ public class InAppBilling extends Activity {
         	return;
         }
         */
+        return;
 	}
 	
 	
@@ -254,7 +322,11 @@ public class InAppBilling extends Activity {
 	public static void Consume()
 	{
 		Log.e("CONSUME", "CONSUME");
-		mHelper.consumeAsync(purchased, mConsumeFinishedListener);
+    	((Activity)mContext).runOnUiThread(new Runnable() {
+    		public void run() {
+    			mHelper.consumeAsync(purchased, mConsumeFinishedListener);
+    		}
+    	});
 	}
 	
 	static IabHelper.OnConsumeFinishedListener mConsumeFinishedListener = new IabHelper.OnConsumeFinishedListener() {

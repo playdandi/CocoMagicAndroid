@@ -88,11 +88,13 @@ public class CocoMagic extends Cocos2dxActivity{
     	regId = id;
     }
     
-    public static void StartIAB(int type, String productId, String payload)
+    public static void StartIAB(int type, int kakaoId, int topazId, String productId, String payload)
     {
     	// 팝업으로 사용할 액티비티를 호출할 인텐트를 작성한다.
 		Intent intent = new Intent(activity, InAppBilling.class);
 		intent.putExtra("type", type);
+		intent.putExtra("kakaoId", kakaoId);
+		intent.putExtra("topazId", topazId);
 		intent.putExtra("productId", productId);
 		intent.putExtra("payload", payload);
 		activity.startActivity(intent);
