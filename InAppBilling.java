@@ -27,6 +27,7 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Log;
+import android.widget.Toast;
 
 import com.android.vending.billing.IInAppBillingService;
 import com.playDANDi.CocoMagic.util.IabHelper;
@@ -45,10 +46,16 @@ public class InAppBilling extends Activity {
 	static int kakaoId;
 	static int topazId;
 	static String productId;
-	static String payload;	 
+	static String payload;	
 	
-	public native void verifyPayloadAndProvideItem(String data, String signature, int topazCount);
-	public native void sendResultToCocos2dx(String response, int size);
+	static ArrayList<Purchase> purchaseForConsume;
+	static int consumedCnt;
+	
+	//public native void verifyPayloadAndProvideItem(String data, String signature, int topazCount);
+	public native void sendResultToCocos2dx(String response, int size, int consumeIdx);
+	public native static void startGame();
+	//public native static void showErrorPopup();
+	public native static void setErrorFlag(boolean flag);
 	 
 	// Binding to IInAppBillingService (to establish a connection with IAB service on GooglePlay)
     ServiceConnection mServiceConn = new ServiceConnection() {
@@ -102,8 +109,11 @@ public class InAppBilling extends Activity {
 		        // IAB 셋업이 완료되었습니다.
 		        Log.d("IAB", "Setup successful. (type = " + type + ")");
 		        
-		        if (type == 0) // 앱을 처음 실행한 경우 (소진되지 않은 상품 확인용)
+		        if (type == 0) { // 앱을 처음 실행한 경우 (소진되지 않은 상품 확인용)
+		        	purchaseForConsume = new ArrayList<Purchase>();
+		        	consumedCnt = 0;
 		        	mHelper.queryInventoryAsync(mGotInventoryListener);
+		        }
 		        else if (type == 1) // 구매 시도하는 경우
 		        {
 		        	String purchaseToken = "inapp:"+getPackageName()+":android.test.purchased";
@@ -138,25 +148,31 @@ public class InAppBilling extends Activity {
  	            return;
  	        }
  	        
- 	        ArrayList<String> skuList = new ArrayList<String>(6); // 숫자 바꾸기
+ 	        ArrayList<String> skuList = new ArrayList<String>(); // 숫자 바꾸기
  	        skuList.add("topaz20");
  	        skuList.add("topaz55");
  	        skuList.add("topaz120");
  	        skuList.add("topaz390");
  	       	skuList.add("topaz900");
- 	       	skuList.add("topaz10"); // test
+ 	       	//skuList.add("topaz10"); // test
  	        
  	       	// 각 sku마다 검사 : 소진되지 않은 상품을 다시 verify해서 소진하자.
  	       	boolean flag = false;
  	       	for (int i = 0 ; i < skuList.size(); i++) {
  	       		Purchase p = inventory.getPurchase(skuList.get(i));
  	       		if (p != null) {
+ 	       			Log.e("Query Inventory", skuList.get(i) + "소진 시도");
  	       			flag = true;
- 	       			VerifyToServer(p);
+ 	       			purchaseForConsume.add(p);
+ 	       			int curTopazId = Integer.parseInt(skuList.get(i).replace("topaz", ""));
+ 	       			VerifyToServer(p, curTopazId, purchaseForConsume.size()-1);
  	       		}
  	       	}
- 	       	if (!flag)
+ 	       	if (!flag) {
+ 	       		Log.e("Query Inventory", "소진할 상품이 없음");
  	       		finish();
+ 	       		startGame();
+ 	       	}
  	    }
  	};
 	
@@ -192,6 +208,7 @@ public class InAppBilling extends Activity {
 		try {
 			Log.e("method", "Buy start (productId = " + productId + "), (kakaoId = " + kakaoId + "), (topazId = " + topazId + ")");
 			
+			// test
 			//String sku = "android.test.purchased";
 			//mHelper.launchPurchaseFlow(this, sku, 1001, mPurchaseFinishedListener, payload);
 			
@@ -221,35 +238,35 @@ public class InAppBilling extends Activity {
 	    public void onIabPurchaseFinished(IabResult result, Purchase purchase) {
 	        Log.e("Purchase Result ", "result: " + result + ", purchase: " + purchase);
 
-	        VerifyToServer(purchase);
+	        /*
+	        if (result.isFailure()) {
+	        	Log.e("Purchase Result ", "구매 실패...");
+	        	finish();
+	            return;
+	        }
+	        // mHelper 객체가 소거되었다면 종료
+	        if (mHelper == null) {
+	        	finish();
+	        	return;
+	        }
+	        */
+	        
+	        VerifyToServer(purchase, topazId, -1);
 	    }
 	};	
 	
-	
-	public void VerifyToServer(Purchase purchase)
+	// 서버 검증 함
+	// consumeIdx는 앱 처음 구동 시 consume할 때만 사용된다. 
+	public void VerifyToServer(Purchase purchase, final int curTopazId, final int consumeIdx)
 	{
 		final String purchasedData = purchase.getOriginalJson();
         final String dataSignature = purchase.getSignature().replace("+",  "-");
         
         Log.d("data", purchasedData);
         Log.d("sign", dataSignature);
+        Log.d("topaz id", curTopazId+"");
         
-        /*
-        int topazCount = -1;
-		try {
-			JSONObject jo = new JSONObject(purchasedData);
-			String productId = jo.getString("productId");
-			productId = "topaz390";
-			productId = productId.replace("topaz", "");
-			topazCount = Integer.parseInt(productId);
-			
-		} catch (JSONException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		*/
-	
-        purchased = purchase;
+        purchased = purchase; // 전역 변수 임시 저장
         
         Thread thread = new Thread() {
             @Override
@@ -262,11 +279,10 @@ public class InAppBilling extends Activity {
 
                     HttpPost httpPost = new HttpPost();
                     httpPost.setURI(url);
-
                     
                     List<BasicNameValuePair> nameValuePairs = new ArrayList<BasicNameValuePair>(2);
                     nameValuePairs.add(new BasicNameValuePair("kakao_id", String.valueOf(kakaoId)));
-                    nameValuePairs.add(new BasicNameValuePair("topaz_id", String.valueOf(topazId)));
+                    nameValuePairs.add(new BasicNameValuePair("topaz_id", String.valueOf(curTopazId)));
                     nameValuePairs.add(new BasicNameValuePair("purchase_data", purchasedData));
                     nameValuePairs.add(new BasicNameValuePair("signature", dataSignature));
                    
@@ -278,8 +294,17 @@ public class InAppBilling extends Activity {
                     int size = responseString.length();
                     Log.e("response", responseString);
                     Log.e("response", "size = " + size);
-                    
-                    sendResultToCocos2dx(responseString, size);
+
+                    // code가 0이 아니면 액티비티 종료. (그리고 cocos2d-x 에서 재부팅 팝업창 띄움)
+                    int code = Integer.parseInt( responseString.split("<code>")[1].split("</code>")[0].trim() );
+                    if (code != 0) {
+                    	Log.e("code error", "failed code = " + code + " , 결제 액티비티 종료함.");
+                    	((Activity)mContext).finish();
+                    }
+                    else {
+                    	// cocos2d-x에 response를 보내서 클라이언트 상에 상품이 지급되도록 하자.
+                    	sendResultToCocos2dx(responseString, size, consumeIdx);
+                    }
 
                 } catch (URISyntaxException e) {
                     Log.e("http thread", e.getLocalizedMessage());
@@ -295,23 +320,7 @@ public class InAppBilling extends Activity {
         };
         
         thread.start();
-        
-        
-		// cocos2d-x에서 구매 검증 프로토콜을 서버로 보낸다.
-        //verifyPayloadAndProvideItem(purchasedData, dataSignature, topazCount);
- 
-        /*
-        if (result.isFailure()) {
-        	Log.e("Purchase Result ", "구매 실패...");
-        	finish();
-            return;
-        }
-        // mHelper 객체가 소거되었다면 종료
-        if (mHelper == null) {
-        	finish();
-        	return;
-        }
-        */
+
         return;
 	}
 	
@@ -319,12 +328,15 @@ public class InAppBilling extends Activity {
 	static Purchase purchased;
 	
 	// 검증이 성공적으로 되었다면, 소진한다.
-	public static void Consume()
+	public static void Consume(final int consumeIdx)
 	{
-		Log.e("CONSUME", "CONSUME");
+		Log.e("CONSUME", "Type = " + type + " , consumeIdx = " + consumeIdx);
     	((Activity)mContext).runOnUiThread(new Runnable() {
     		public void run() {
-    			mHelper.consumeAsync(purchased, mConsumeFinishedListener);
+    			if (type == 0)
+    				mHelper.consumeAsync(purchaseForConsume.get(consumeIdx), mConsumeFinishedListener);
+    			else
+    				mHelper.consumeAsync(purchased, mConsumeFinishedListener);
     		}
     	});
 	}
@@ -341,12 +353,36 @@ public class InAppBilling extends Activity {
 	        
 	        if (result.isSuccess()) {
 	            Log.e("성공", "Consumption successful. Provisioning.");
+	            
+	            int topazCount = -1;
+				try {
+					JSONObject jo = new JSONObject(purchase.getOriginalJson());
+					topazCount = Integer.parseInt( jo.getString("productId").replace("topaz", "") );
+				} catch (JSONException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				
+				// cocos2d-x에서 에러 팝업창을 띄우지 않도록 한다. (정상처리 되었으니까)
+				setErrorFlag(false);
+				
+	            Toast toast = Toast.makeText(mContext, "토파즈 " + topazCount + "개를 성공적으로 구매하였습니다!", Toast.LENGTH_SHORT);
+		    	toast.show();
 	        }
 	        else {
 	            Log.e("실패", "소진 실패");
 	        }
 	        
-	        ((Activity)mContext).finish();
+	        if (type == 0) {
+	        	consumedCnt++;
+	        	Log.e("consumedCnt", consumedCnt + " , " + purchaseForConsume.size());
+	        	if (consumedCnt >= purchaseForConsume.size()) {
+	        		((Activity)mContext).finish();
+	        		startGame();
+	        	}
+	        }
+	        else
+	        	((Activity)mContext).finish();
 	    }
 	};
 	
@@ -359,17 +395,45 @@ public class InAppBilling extends Activity {
 	    }
 	 
 	    if (requestCode == 1001) {
-	    	// 결과를 mHelper를 통해 처리합니다.
-	    	if (!mHelper.handleActivityResult(requestCode, resultCode, data)) {
-	    		// 처리할 결과물이 아닐경우 이곳으로 빠져 기본처리를 하도록 합니다.
-	    		super.onActivityResult(requestCode, resultCode, data);
-	    	}
-	    	else {
-	    		Log.d("onActivityResult", "onActivityResult handled by IABUtil.");
-	    	}
+	    	int responseCode = data.getIntExtra("RESPONSE_CODE", 0);
+		    Log.d("onActivityResult", responseCode + "");
+		    
+		    if (responseCode != 0) {
+		    	Toast toast = Toast.makeText(mContext, "구매가 취소되었습니다.", Toast.LENGTH_SHORT);
+		    	toast.show();
+		    	finish();
+		    }
+		    else {
+		    	// 결과를 mHelper를 통해 처리합니다.
+		    	if (!mHelper.handleActivityResult(requestCode, resultCode, data)) {
+		    		// 처리할 결과물이 아닐경우 이곳으로 빠져 기본처리를 하도록 합니다.
+		    		Log.e("에러", "정상적 상황이 아닌 경우");
+		    		finish();
+		    		//super.onActivityResult(requestCode, resultCode, data);
+		    	}
+		    	else {
+		    		Log.d("onActivityResult", "onActivityResult handled by IABUtil.");
+		    	}
+		    }
+	    }
+	    else {
+	    	Toast toast = Toast.makeText(mContext, "구매가 취소되었습니다.", Toast.LENGTH_SHORT);
+	    	toast.show();
+	    	finish();
 	    }
 	}
 
+	/*
+	// back button management
+	public boolean onKeyDown(int keyCode, KeyEvent event) {
+		switch(keyCode) {
+			case KeyEvent.KEYCODE_BACK:
+				Log.d("키키키", "백버튼 누름");
+				break;
+		}
+		return false;
+	}
+	*/
     
     @Override
     public void onDestroy() {
@@ -383,6 +447,5 @@ public class InAppBilling extends Activity {
     	
     	if (mService != null) // or mServiceConn?
     		unbindService(mServiceConn);
-    	
     }
 }
