@@ -43,10 +43,12 @@ public class InAppBilling extends Activity {
 	CocoMagic parentActivity;
 	
 	static int type; // 0 : 앱 초기실행 시  ,  1 : 구매를 시도할 경우
-	static int kakaoId;
 	static int topazId;
+	static String kakaoId;
+	static String friendKakaoId;
 	static String productId;
-	static String payload;	
+	static String payload;
+	static String base64EncodedPublicKey;
 	
 	static ArrayList<Purchase> purchaseForConsume;
 	static int consumedCnt;
@@ -80,11 +82,12 @@ public class InAppBilling extends Activity {
 		
 		Intent intent = getIntent();
 		type = intent.getIntExtra("type", 1);
-		kakaoId = intent.getIntExtra("kakaoId", -1);
 		topazId = intent.getIntExtra("topazId", -1);
+		kakaoId = intent.getStringExtra("kakaoId");
+		friendKakaoId = intent.getStringExtra("friendKakaoId");
 		productId = intent.getStringExtra("productId");
 		payload = intent.getStringExtra("payload");
-		
+		base64EncodedPublicKey = intent.getStringExtra("gcmPublicKey");
 		
 		
 		// perform the binding (after that, we can use mService ref. to communicate with the Google Play service)
@@ -92,7 +95,7 @@ public class InAppBilling extends Activity {
 				mServiceConn, Context.BIND_AUTO_CREATE);
 		
 		// IAB helper (To set up synchronous communication with Google Play)
-		String base64EncodedPublicKey = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAp/wCUpIlBnW7HvDklSPEDBrD5U9Ubh92+oocpgigRDEBcUdvFdCL63ctaF1F45kYwXOC1OYGqp184LHNNKcO7S+qMd4jAeortnQgGcIzTCTxBSeu5xWpFiz6nM3IO+X51LHW57ou8pLhGbJ17HXP8SGWUUpV25KL1/4c7wunTUYcW7MYwIvd2GZSsdWxBuB9a2AgJwbWs5FfgJrxPeTq1wlAMoQABl5j8r/zYqqy/7edASjWcQELBXDf9jhWgEwvqcK/USqJFYBCA2gkFle3SwK+1Doy5/D5RzR+kpk8Tpx4z09UprXnzHjnFCZJQNVayABPZGpej4XIAC5nFM5TKwIDAQAB";
+		//String base64EncodedPublicKey = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAp/wCUpIlBnW7HvDklSPEDBrD5U9Ubh92+oocpgigRDEBcUdvFdCL63ctaF1F45kYwXOC1OYGqp184LHNNKcO7S+qMd4jAeortnQgGcIzTCTxBSeu5xWpFiz6nM3IO+X51LHW57ou8pLhGbJ17HXP8SGWUUpV25KL1/4c7wunTUYcW7MYwIvd2GZSsdWxBuB9a2AgJwbWs5FfgJrxPeTq1wlAMoQABl5j8r/zYqqy/7edASjWcQELBXDf9jhWgEwvqcK/USqJFYBCA2gkFle3SwK+1Doy5/D5RzR+kpk8Tpx4z09UprXnzHjnFCZJQNVayABPZGpej4XIAC5nFM5TKwIDAQAB";
 		mHelper = new IabHelper(this, base64EncodedPublicKey);
 		//mHelper.enableDebugLogging(true);
 		mHelper.startSetup(new IabHelper.OnIabSetupFinishedListener() {
@@ -153,7 +156,12 @@ public class InAppBilling extends Activity {
  	        skuList.add("topaz55");
  	        skuList.add("topaz120");
  	        skuList.add("topaz390");
- 	       	skuList.add("topaz900");
+ 	        skuList.add("topaz900");
+ 	        skuList.add("topaz20_p");
+	        skuList.add("topaz55_p");
+	        skuList.add("topaz120_p");
+	        skuList.add("topaz390_p");
+	        skuList.add("topaz900_p");
  	       	//skuList.add("topaz10"); // test
  	        
  	       	// 각 sku마다 검사 : 소진되지 않은 상품을 다시 verify해서 소진하자.
@@ -265,61 +273,127 @@ public class InAppBilling extends Activity {
         Log.d("data", purchasedData);
         Log.d("sign", dataSignature);
         Log.d("topaz id", curTopazId+"");
+        Log.d("kakao id", kakaoId);
+        Log.d("friend kakao id", friendKakaoId);
         
         purchased = purchase; // 전역 변수 임시 저장
         
-        Thread thread = new Thread() {
-            @Override
-            public void run() {
-                HttpClient httpClient = new DefaultHttpClient();
+        // 토파즈 구
+        if (friendKakaoId == "")
+        {
+        	Thread thread = new Thread() {
+                @Override
+                public void run() {
+                    HttpClient httpClient = new DefaultHttpClient();
 
-                String urlString = "http://14.63.225.203/cogma/game/purchase_topaz_google.php";
-                try {
-                    URI url = new URI(urlString);
-
-                    HttpPost httpPost = new HttpPost();
-                    httpPost.setURI(url);
                     
-                    List<BasicNameValuePair> nameValuePairs = new ArrayList<BasicNameValuePair>(2);
-                    nameValuePairs.add(new BasicNameValuePair("kakao_id", String.valueOf(kakaoId)));
-                    nameValuePairs.add(new BasicNameValuePair("topaz_id", String.valueOf(curTopazId)));
-                    nameValuePairs.add(new BasicNameValuePair("purchase_data", purchasedData));
-                    nameValuePairs.add(new BasicNameValuePair("signature", dataSignature));
-                   
-                    httpPost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
+                    	String urlString = "http://14.63.212.106/cogma/game/purchase_topaz_google.php";
+                    	try {
+                            URI url = new URI(urlString);
 
-                    HttpResponse response = httpClient.execute(httpPost);
-                    String responseString = EntityUtils.toString(response.getEntity(), HTTP.UTF_8);
-                    
-                    int size = responseString.length();
-                    Log.e("response", responseString);
-                    Log.e("response", "size = " + size);
+                            HttpPost httpPost = new HttpPost();
+                            httpPost.setURI(url);
+                            
+                            List<BasicNameValuePair> nameValuePairs = new ArrayList<BasicNameValuePair>(2);
+                            nameValuePairs.add(new BasicNameValuePair("kakao_id", String.valueOf(kakaoId)));
+                            nameValuePairs.add(new BasicNameValuePair("topaz_id", String.valueOf(curTopazId)));
+                            nameValuePairs.add(new BasicNameValuePair("purchase_data", purchasedData));
+                            nameValuePairs.add(new BasicNameValuePair("signature", dataSignature));
+                           
+                            httpPost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
 
-                    // code가 0이 아니면 액티비티 종료. (그리고 cocos2d-x 에서 재부팅 팝업창 띄움)
-                    int code = Integer.parseInt( responseString.split("<code>")[1].split("</code>")[0].trim() );
-                    if (code != 0) {
-                    	Log.e("code error", "failed code = " + code + " , 결제 액티비티 종료함.");
-                    	((Activity)mContext).finish();
+                            HttpResponse response = httpClient.execute(httpPost);
+                            String responseString = EntityUtils.toString(response.getEntity(), HTTP.UTF_8);
+                            
+                            int size = responseString.length();
+                            Log.e("response", responseString);
+                            Log.e("response", "size = " + size);
+
+                            // code가 0이 아니면 액티비티 종료. (그리고 cocos2d-x 에서 재부팅 팝업창 띄움)
+                            int code = Integer.parseInt( responseString.split("<code>")[1].split("</code>")[0].trim() );
+                            if (code != 0) {
+                            	Log.e("code error", "failed code = " + code + " , 결제 액티비티 종료함.");
+                            	((Activity)mContext).finish();
+                            }
+                            else {
+                            	// cocos2d-x에 response를 보내서 클라이언트 상에 상품이 지급되도록 하자.
+                            	sendResultToCocos2dx(responseString, size, consumeIdx);
+                            }
+
+                        } catch (URISyntaxException e) {
+                            Log.e("http thread", e.getLocalizedMessage());
+                            e.printStackTrace();
+                        } catch (ClientProtocolException e) {
+                            Log.e("http thread", e.getLocalizedMessage());
+                            e.printStackTrace();
+                        } catch (IOException e) {
+                            Log.e("http thread", e.getLocalizedMessage());
+                            e.printStackTrace();
+                        }
                     }
-                    else {
-                    	// cocos2d-x에 response를 보내서 클라이언트 상에 상품이 지급되도록 하자.
-                    	sendResultToCocos2dx(responseString, size, consumeIdx);
-                    }
-
-                } catch (URISyntaxException e) {
-                    Log.e("http thread", e.getLocalizedMessage());
-                    e.printStackTrace();
-                } catch (ClientProtocolException e) {
-                    Log.e("http thread", e.getLocalizedMessage());
-                    e.printStackTrace();
-                } catch (IOException e) {
-                    Log.e("http thread", e.getLocalizedMessage());
-                    e.printStackTrace();
-                }
-            }
-        };
+        	};
+        	thread.start();
+        }
         
-        thread.start();
+        // 토파즈 선물하기
+        else
+        {
+        	Log.e("아아아!", "토파즈 선물할꼬얌~~~~~~~~");
+        	Thread thread = new Thread() {
+                @Override
+                public void run() {
+                    HttpClient httpClient = new DefaultHttpClient();
+
+                    
+                    	String urlString = "http://14.63.212.106/cogma/game/send_topaz_google.php";
+                    	try {
+                            URI url = new URI(urlString);
+
+                            HttpPost httpPost = new HttpPost();
+                            httpPost.setURI(url);
+                            
+                            List<BasicNameValuePair> nameValuePairs = new ArrayList<BasicNameValuePair>(2);
+                            nameValuePairs.add(new BasicNameValuePair("kakao_id", kakaoId));
+                            nameValuePairs.add(new BasicNameValuePair("friend_kakao_id", friendKakaoId));
+                            nameValuePairs.add(new BasicNameValuePair("topaz_id", String.valueOf(curTopazId)));
+                            nameValuePairs.add(new BasicNameValuePair("purchase_data", purchasedData));
+                            nameValuePairs.add(new BasicNameValuePair("signature", dataSignature));
+                           
+                            httpPost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
+
+                            HttpResponse response = httpClient.execute(httpPost);
+                            String responseString = EntityUtils.toString(response.getEntity(), HTTP.UTF_8);
+                            
+                            int size = responseString.length();
+                            Log.e("response", responseString);
+                            Log.e("response", "size = " + size);
+
+                            // code가 0이 아니면 액티비티 종료. (그리고 cocos2d-x 에서 재부팅 팝업창 띄움)
+                            int code = Integer.parseInt( responseString.split("<code>")[1].split("</code>")[0].trim() );
+                            if (code != 0) {
+                            	Log.e("code error", "failed code = " + code + " , 결제 액티비티 종료함.");
+                            	((Activity)mContext).finish();
+                            }
+                            else {
+                            	// cocos2d-x에 response를 보내서 클라이언트 상에 상품이 지급되도록 하자.
+                            	sendResultToCocos2dx(responseString, size, consumeIdx);
+                            }
+
+                        } catch (URISyntaxException e) {
+                            Log.e("http thread", e.getLocalizedMessage());
+                            e.printStackTrace();
+                        } catch (ClientProtocolException e) {
+                            Log.e("http thread", e.getLocalizedMessage());
+                            e.printStackTrace();
+                        } catch (IOException e) {
+                            Log.e("http thread", e.getLocalizedMessage());
+                            e.printStackTrace();
+                        }
+                    }
+        	};
+        	thread.start();
+        }
+        
 
         return;
 	}
