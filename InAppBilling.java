@@ -59,6 +59,8 @@ public class InAppBilling extends Activity {
 	//public native static void showErrorPopup();
 	public native static void setErrorFlag(boolean flag);
 	 
+	ServiceConnection mServiceConn = null;
+	/*
 	// Binding to IInAppBillingService (to establish a connection with IAB service on GooglePlay)
     ServiceConnection mServiceConn = new ServiceConnection() {
 		@Override
@@ -71,6 +73,7 @@ public class InAppBilling extends Activity {
 			mService = IInAppBillingService.Stub.asInterface(service);
 		}
 	};	
+	*/
 	
     protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -90,47 +93,61 @@ public class InAppBilling extends Activity {
 		base64EncodedPublicKey = intent.getStringExtra("gcmPublicKey");
 		
 		
+		// Binding to IInAppBillingService (to establish a connection with IAB service on GooglePlay)
+	    mServiceConn = new ServiceConnection() {
+			@Override
+			public void onServiceDisconnected(ComponentName name) {
+				mService = null;
+			}
+
+			@Override
+			public void onServiceConnected(ComponentName name, IBinder service) {
+				mService = IInAppBillingService.Stub.asInterface(service);
+				
+				//mHelper.enableDebugLogging(true);
+				mHelper.startSetup(new IabHelper.OnIabSetupFinishedListener() {
+					public void onIabSetupFinished(IabResult result) {
+						if (!result.isSuccess()) {
+							Log.d("IABHelper", "Problem setting up In-app Billing: " + result);
+				            return;
+						}
+						
+						 // 이 시점에 mHelper가 소거되었다면 (엑티비티 종료등) 바로 종료합니다.
+				        if (mHelper == null)
+				        	return;
+				 
+				        // IAB 셋업이 완료되었습니다.
+				        Log.d("IAB", "Setup successful. (type = " + type + ")");
+				        
+				        String purchaseToken = "inapp:"+getPackageName()+":android.test.purchased";
+				        try {
+							mService.consumePurchase(3, getPackageName(),purchaseToken);
+						} catch (RemoteException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+				        
+				        if (type == 0) { // 앱을 처음 실행한 경우 (소진되지 않은 상품 확인용)
+				        	purchaseForConsume = new ArrayList<Purchase>();
+				        	consumedCnt = 0;
+				        	mHelper.queryInventoryAsync(mGotInventoryListener);
+				        }
+				        else if (type == 1) // 구매 시도하는 경우
+				        {			        
+				        	Buy();
+				        }
+					}
+				});
+			}
+		};	
+		
 		// perform the binding (after that, we can use mService ref. to communicate with the Google Play service)
 		bindService (new Intent("com.android.vending.billing.InAppBillingService.BIND"),
 				mServiceConn, Context.BIND_AUTO_CREATE);
 		
 		// IAB helper (To set up synchronous communication with Google Play)
-		//String base64EncodedPublicKey = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAp/wCUpIlBnW7HvDklSPEDBrD5U9Ubh92+oocpgigRDEBcUdvFdCL63ctaF1F45kYwXOC1OYGqp184LHNNKcO7S+qMd4jAeortnQgGcIzTCTxBSeu5xWpFiz6nM3IO+X51LHW57ou8pLhGbJ17HXP8SGWUUpV25KL1/4c7wunTUYcW7MYwIvd2GZSsdWxBuB9a2AgJwbWs5FfgJrxPeTq1wlAMoQABl5j8r/zYqqy/7edASjWcQELBXDf9jhWgEwvqcK/USqJFYBCA2gkFle3SwK+1Doy5/D5RzR+kpk8Tpx4z09UprXnzHjnFCZJQNVayABPZGpej4XIAC5nFM5TKwIDAQAB";
 		mHelper = new IabHelper(this, base64EncodedPublicKey);
-		//mHelper.enableDebugLogging(true);
-		mHelper.startSetup(new IabHelper.OnIabSetupFinishedListener() {
-			public void onIabSetupFinished(IabResult result) {
-				if (!result.isSuccess()) {
-					Log.d("IABHelper", "Problem setting up In-app Billing: " + result);
-		            return;
-				}
-				
-				 // 이 시점에 mHelper가 소거되었다면 (엑티비티 종료등) 바로 종료합니다.
-		        if (mHelper == null)
-		        	return;
-		 
-		        // IAB 셋업이 완료되었습니다.
-		        Log.d("IAB", "Setup successful. (type = " + type + ")");
-		        
-		        if (type == 0) { // 앱을 처음 실행한 경우 (소진되지 않은 상품 확인용)
-		        	purchaseForConsume = new ArrayList<Purchase>();
-		        	consumedCnt = 0;
-		        	mHelper.queryInventoryAsync(mGotInventoryListener);
-		        }
-		        else if (type == 1) // 구매 시도하는 경우
-		        {
-		        	String purchaseToken = "inapp:"+getPackageName()+":android.test.purchased";
-			        try {
-						mService.consumePurchase(3, getPackageName(),purchaseToken);
-					} catch (RemoteException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
-			        
-		        	Buy();
-		        }
-			}
-		});
+		
     }	
     
     // 앱을 처음 실행할 때 IAB setup 완료 직후에 소진되지 않은 상품이 있는지 확인하는 부분의 callback.
@@ -162,7 +179,6 @@ public class InAppBilling extends Activity {
 	        skuList.add("topaz120_p");
 	        skuList.add("topaz390_p");
 	        skuList.add("topaz900_p");
- 	       	//skuList.add("topaz10"); // test
  	        
  	       	// 각 sku마다 검사 : 소진되지 않은 상품을 다시 verify해서 소진하자.
  	       	boolean flag = false;
@@ -172,7 +188,10 @@ public class InAppBilling extends Activity {
  	       			Log.e("Query Inventory", skuList.get(i) + "소진 시도");
  	       			flag = true;
  	       			purchaseForConsume.add(p);
- 	       			int curTopazId = Integer.parseInt(skuList.get(i).replace("topaz", ""));
+ 	       			//int curTopazId = Integer.parseInt(skuList.get(i).replace("topaz", "").replace("_p", ""));
+ 	       			int curTopazId = i+1;
+ 	       			if (curTopazId > 5)
+ 	       				curTopazId -= 5;
  	       			VerifyToServer(p, curTopazId, purchaseForConsume.size()-1);
  	       		}
  	       	}
@@ -183,33 +202,6 @@ public class InAppBilling extends Activity {
  	       	}
  	    }
  	};
-	
-    /*
-	public void AlreadyPurchasedItems() {
-		try {
-			Log.e("method", "AlreadyPurchaseItems start");
-			Bundle ownedItems = mService.getPurchases(3, getPackageName(), "inapp", null);
-			int response = ownedItems.getInt("RESPONSE_CODE");
-			if (response == 0) {
-				ArrayList<String> purchaseDataList = ownedItems.getStringArrayList("INAPP_PURCHASE_DATA_LIST");
-				String[] tokens = new String[purchaseDataList.size()];
-				for (int i = 0; i < purchaseDataList.size(); ++i) {
-					String purchaseData = (String) purchaseDataList.get(i);
-					JSONObject jo = new JSONObject(purchaseData);
-					tokens[i] = jo.getString("purchaseToken");
-					// 여기서 tokens를 모두 컨슘 해주기
-					mService.consumePurchase(3, getPackageName(), tokens[i]);
-				}
-			}
-
-			// 토큰을 모두 컨슘했으니 구매 메서드 처리
-			Buy();
-			
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
-	*/
 	
 	// 제품 구매 구글 결제 팝업창을 띄우는 함수
 	public void Buy() {
@@ -222,21 +214,6 @@ public class InAppBilling extends Activity {
 			
 			mHelper.launchPurchaseFlow(this, productId, 1001, mPurchaseFinishedListener, payload);
 			
-			/*
-			// 제품(id: productId)을 사기 위해 구글 API 호출 
-			Bundle buyIntentBundle = mService.getBuyIntent(3, getPackageName(),	sku, "inapp", "developerpayload");
-			PendingIntent pendingIntent = buyIntentBundle.getParcelable("BUY_INTENT");
-
-			if (pendingIntent != null) {
-				Log.e("content", "Buy Try");
-				// 제품(id: productId)을 구매하겠냐는 구글 결제 팝업창을 띄운다.
-				//startIntentSenderForResult(pendingIntent.getIntentSender(), 1001, new Intent(), Integer.valueOf(0), Integer.valueOf(0), Integer.valueOf(0));
-				mHelper.launchPurchaseFlow(this, getPackageName(), 1001,  mPurchaseFinishedListener, payload);				
-			} else {
-				Log.e("content", "결제 막힘...");
-				// 결제가 막혔다면
-			}
-			*/
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -352,6 +329,13 @@ public class InAppBilling extends Activity {
                             HttpPost httpPost = new HttpPost();
                             httpPost.setURI(url);
                             
+                            friendKakaoId = "1000";
+                            Log.d("kakao id", kakaoId);
+                            Log.d("friend kakao id", friendKakaoId);
+                            Log.d("curTopazId", curTopazId+"");
+                            Log.d("data", purchasedData);
+                            Log.d("sign", dataSignature);
+                            
                             List<BasicNameValuePair> nameValuePairs = new ArrayList<BasicNameValuePair>(2);
                             nameValuePairs.add(new BasicNameValuePair("kakao_id", kakaoId));
                             nameValuePairs.add(new BasicNameValuePair("friend_kakao_id", friendKakaoId));
@@ -431,7 +415,7 @@ public class InAppBilling extends Activity {
 	            int topazCount = -1;
 				try {
 					JSONObject jo = new JSONObject(purchase.getOriginalJson());
-					topazCount = Integer.parseInt( jo.getString("productId").replace("topaz", "") );
+					topazCount = Integer.parseInt( jo.getString("productId").replace("topaz", "").replace("_p", "") );
 				} catch (JSONException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();

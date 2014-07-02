@@ -26,20 +26,21 @@ package com.playDANDi.CocoMagic;
 import org.cocos2dx.lib.Cocos2dxActivity;
 import org.cocos2dx.lib.Cocos2dxGLSurfaceView;
 
-import com.google.android.gcm.GCMRegistrar;
-import com.playDANDi.CocoMagic.util.IabHelper;
-import com.playDANDi.CocoMagic.util.IabResult;
-
-import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager.NameNotFoundException;
+import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
+
+import com.google.android.gcm.GCMRegistrar;
 
 public class CocoMagic extends Cocos2dxActivity{
 	
 	static Variables v;
 	static String regId;
 	public static Cocos2dxActivity activity;
+	static int version = -1;
 	
     protected void onCreate(Bundle savedInstanceState){
 		super.onCreate(savedInstanceState);	
@@ -49,6 +50,14 @@ public class CocoMagic extends Cocos2dxActivity{
 		
 		// GCM push 관련 registration  
 		registerGCM();
+		
+		// version name 저장해 두기.
+		try {
+			version = Integer.parseInt( getPackageManager().getPackageInfo(getPackageName(), 0).versionName );
+		} catch (NameNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 
     public void registerGCM()
@@ -79,7 +88,6 @@ public class CocoMagic extends Cocos2dxActivity{
     
     public static String GetRegistrationId()
     {
-    	//Log.e("JNITest", "Success Java Func Call ! ");
     	return v.getRegistrationId();
     }
     
@@ -88,6 +96,7 @@ public class CocoMagic extends Cocos2dxActivity{
     	regId = id;
     }
     
+    // 결제 시작 함수
     public static void StartIAB(int type, int topazId, String kakaoId, String friendKakaoId, String productId, String payload, String gcmPublicKey)
     {
     	// 팝업으로 사용할 액티비티를 호출할 인텐트를 작성한다.
@@ -102,12 +111,20 @@ public class CocoMagic extends Cocos2dxActivity{
 		activity.startActivity(intent);
     }
     
-    /*public void verifyPurchase(String data, String signature)
+    // 플레이스토어로 가는 함수
+    public static void GoToPlayStore()
     {
-    	Log.e("verifyPurchase", "hihi");
-    	verifyPayloadAndProvideItem(data, signature);
-    }*/
+    	Intent intent = new Intent(Intent.ACTION_VIEW);
+    	intent.setData(Uri.parse("market://details?id=com.playDANDi.CocoMagic"));
+    	activity.startActivity(intent); 
+    }
+    
+    public static int GetBinaryVersion()
+    {
+        return version;
+    }
 
+    
     static {
         System.loadLibrary("cocos2dcpp");
     }
