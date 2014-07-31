@@ -1,12 +1,15 @@
 package com.playDANDi.CocoMagic;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
+import org.apache.http.NameValuePair;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
@@ -27,6 +30,7 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.widget.Toast;
 
 import com.android.vending.billing.IInAppBillingService;
@@ -42,7 +46,9 @@ public class InAppBilling extends Activity {
 	static Context mContext;
 	CocoMagic parentActivity;
 	
-	static int type; // 0 : 앱 초기실행 시  ,  1 : 구매를 시도할 경우
+	static boolean isBackBtnOk;
+	
+	static int type; // 0 : 앱 초기실행 시  ,  1 : 구매를 시도할 경우(일반구매) , 2 : 구매를 시도할 경우(선물하기)
 	static int topazId;
 	static String kakaoId;
 	static String friendKakaoId;
@@ -53,27 +59,13 @@ public class InAppBilling extends Activity {
 	static ArrayList<Purchase> purchaseForConsume;
 	static int consumedCnt;
 	
-	//public native void verifyPayloadAndProvideItem(String data, String signature, int topazCount);
-	public native void sendResultToCocos2dx(String response, int size, int consumeIdx);
+	public native String VerifyGoogle(int purchaseType, int topazId, String kakaoId, String friendKakaoId, String purchaseData, String dataSignature, int consumeIdx);
+	public native String Deobfuscated(String response);
+	public native void sendResultToCocos2dx(String response, int size, int consumeIdx, String friendKakaoId);
 	public native static void startGame();
-	//public native static void showErrorPopup();
 	public native static void setErrorFlag(boolean flag);
 	 
 	ServiceConnection mServiceConn = null;
-	/*
-	// Binding to IInAppBillingService (to establish a connection with IAB service on GooglePlay)
-    ServiceConnection mServiceConn = new ServiceConnection() {
-		@Override
-		public void onServiceDisconnected(ComponentName name) {
-			mService = null;
-		}
-
-		@Override
-		public void onServiceConnected(ComponentName name, IBinder service) {
-			mService = IInAppBillingService.Stub.asInterface(service);
-		}
-	};	
-	*/
 	
     protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -82,6 +74,8 @@ public class InAppBilling extends Activity {
 		
 		mContext = this;
 		parentActivity = (CocoMagic)getParent();
+		
+		isBackBtnOk = true;
 		
 		Intent intent = getIntent();
 		type = intent.getIntExtra("type", 1);
@@ -132,7 +126,7 @@ public class InAppBilling extends Activity {
 				        	consumedCnt = 0;
 				        	mHelper.queryInventoryAsync(mGotInventoryListener);
 				        }
-				        else if (type == 1) // 구매 시도하는 경우
+				        else if (type == 1 || type == 2) // 구매 시도하는 경우 (일반구매, 선물하기)
 				        {			        
 				        	Buy();
 				        }
@@ -188,11 +182,12 @@ public class InAppBilling extends Activity {
  	       			Log.e("Query Inventory", skuList.get(i) + "소진 시도");
  	       			flag = true;
  	       			purchaseForConsume.add(p);
- 	       			//int curTopazId = Integer.parseInt(skuList.get(i).replace("topaz", "").replace("_p", ""));
+ 	       			
  	       			int curTopazId = i+1;
  	       			if (curTopazId > 5)
  	       				curTopazId -= 5;
- 	       			VerifyToServer(p, curTopazId, purchaseForConsume.size()-1);
+ 	       			int purchaseType = (i < 5) ? 1 : 2; // 일반구매(1), 선물하기(2)
+ 	       			VerifyToServer(p, curTopazId, purchaseForConsume.size()-1, purchaseType);
  	       		}
  	       	}
  	       	if (!flag) {
@@ -223,7 +218,6 @@ public class InAppBilling extends Activity {
 	    public void onIabPurchaseFinished(IabResult result, Purchase purchase) {
 	        Log.e("Purchase Result ", "result: " + result + ", purchase: " + purchase);
 
-	        /*
 	        if (result.isFailure()) {
 	        	Log.e("Purchase Result ", "구매 실패...");
 	        	finish();
@@ -234,15 +228,14 @@ public class InAppBilling extends Activity {
 	        	finish();
 	        	return;
 	        }
-	        */
 	        
-	        VerifyToServer(purchase, topazId, -1);
+	        VerifyToServer(purchase, topazId, -1, type);
 	    }
 	};	
 	
-	// 서버 검증 함
+	// 서버 검증
 	// consumeIdx는 앱 처음 구동 시 consume할 때만 사용된다. 
-	public void VerifyToServer(Purchase purchase, final int curTopazId, final int consumeIdx)
+	public void VerifyToServer(Purchase purchase, final int curTopazId, final int consumeIdx, final int purchaseType)
 	{
 		final String purchasedData = purchase.getOriginalJson();
         final String dataSignature = purchase.getSignature().replace("+",  "-");
@@ -254,132 +247,87 @@ public class InAppBilling extends Activity {
         Log.d("friend kakao id", friendKakaoId);
         
         purchased = purchase; // 전역 변수 임시 저장
-        
-        // 토파즈 구
-        if (friendKakaoId == "")
-        {
-        	Thread thread = new Thread() {
-                @Override
-                public void run() {
-                    HttpClient httpClient = new DefaultHttpClient();
 
+        String params = "";
+        if (purchaseType == 1) // 일반구매 
+    		params = VerifyGoogle(purchaseType, curTopazId, String.valueOf(kakaoId), "", purchasedData, dataSignature, consumeIdx);
+    	else if (purchaseType == 2) 
+    		params = VerifyGoogle(purchaseType, curTopazId, String.valueOf(kakaoId), friendKakaoId, purchasedData, dataSignature, consumeIdx);
+        
+        String[] p = params.split("#@!!@#");
+        final String ps = p[0];
+        final String a = p[1];
+        final String urlString = p[2];
+        
+        Log.e("PS", p[0]);
+        Log.e("a", p[1]);
+        Log.e("url", p[2]);
+        
+        Thread thread = new Thread() {
+            @Override
+            public void run() {
+            	// http request & response
+                HttpClient httpClient = new DefaultHttpClient();
+            	try {
+                    URI url = new URI(urlString);
+                    HttpPost httpPost = new HttpPost();
+                    httpPost.setURI(url);
                     
-                    	String urlString = "http://14.63.212.106/cogma/game/purchase_topaz_google.php";
-                    	try {
-                            URI url = new URI(urlString);
-
-                            HttpPost httpPost = new HttpPost();
-                            httpPost.setURI(url);
-                            
-                            List<BasicNameValuePair> nameValuePairs = new ArrayList<BasicNameValuePair>(2);
-                            nameValuePairs.add(new BasicNameValuePair("kakao_id", String.valueOf(kakaoId)));
-                            nameValuePairs.add(new BasicNameValuePair("topaz_id", String.valueOf(curTopazId)));
-                            nameValuePairs.add(new BasicNameValuePair("purchase_data", purchasedData));
-                            nameValuePairs.add(new BasicNameValuePair("signature", dataSignature));
-                           
-                            httpPost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
-
-                            HttpResponse response = httpClient.execute(httpPost);
-                            String responseString = EntityUtils.toString(response.getEntity(), HTTP.UTF_8);
-                            
-                            int size = responseString.length();
-                            Log.e("response", responseString);
-                            Log.e("response", "size = " + size);
-
-                            // code가 0이 아니면 액티비티 종료. (그리고 cocos2d-x 에서 재부팅 팝업창 띄움)
-                            int code = Integer.parseInt( responseString.split("<code>")[1].split("</code>")[0].trim() );
-                            if (code != 0) {
-                            	Log.e("code error", "failed code = " + code + " , 결제 액티비티 종료함.");
-                            	((Activity)mContext).finish();
-                            }
-                            else {
-                            	// cocos2d-x에 response를 보내서 클라이언트 상에 상품이 지급되도록 하자.
-                            	sendResultToCocos2dx(responseString, size, consumeIdx);
-                            }
-
-                        } catch (URISyntaxException e) {
-                            Log.e("http thread", e.getLocalizedMessage());
-                            e.printStackTrace();
-                        } catch (ClientProtocolException e) {
-                            Log.e("http thread", e.getLocalizedMessage());
-                            e.printStackTrace();
-                        } catch (IOException e) {
-                            Log.e("http thread", e.getLocalizedMessage());
-                            e.printStackTrace();
-                        }
-                    }
-        	};
-        	thread.start();
-        }
-        
-        // 토파즈 선물하기
-        else
-        {
-        	Log.e("아아아!", "토파즈 선물할꼬얌~~~~~~~~");
-        	Thread thread = new Thread() {
-                @Override
-                public void run() {
-                    HttpClient httpClient = new DefaultHttpClient();
-
+                    List<BasicNameValuePair> nameValuePairs = new ArrayList<BasicNameValuePair>(2);
+                    nameValuePairs.add(new BasicNameValuePair("PS", ps));
+                    nameValuePairs.add(new BasicNameValuePair("a", a));
                     
-                    	String urlString = "http://14.63.212.106/cogma/game/send_topaz_google.php";
-                    	try {
-                            URI url = new URI(urlString);
+                    httpPost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
 
-                            HttpPost httpPost = new HttpPost();
-                            httpPost.setURI(url);
-                            
-                            friendKakaoId = "1000";
-                            Log.d("kakao id", kakaoId);
-                            Log.d("friend kakao id", friendKakaoId);
-                            Log.d("curTopazId", curTopazId+"");
-                            Log.d("data", purchasedData);
-                            Log.d("sign", dataSignature);
-                            
-                            List<BasicNameValuePair> nameValuePairs = new ArrayList<BasicNameValuePair>(2);
-                            nameValuePairs.add(new BasicNameValuePair("kakao_id", kakaoId));
-                            nameValuePairs.add(new BasicNameValuePair("friend_kakao_id", friendKakaoId));
-                            nameValuePairs.add(new BasicNameValuePair("topaz_id", String.valueOf(curTopazId)));
-                            nameValuePairs.add(new BasicNameValuePair("purchase_data", purchasedData));
-                            nameValuePairs.add(new BasicNameValuePair("signature", dataSignature));
-                           
-                            httpPost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
-
-                            HttpResponse response = httpClient.execute(httpPost);
-                            String responseString = EntityUtils.toString(response.getEntity(), HTTP.UTF_8);
-                            
-                            int size = responseString.length();
-                            Log.e("response", responseString);
-                            Log.e("response", "size = " + size);
-
-                            // code가 0이 아니면 액티비티 종료. (그리고 cocos2d-x 에서 재부팅 팝업창 띄움)
-                            int code = Integer.parseInt( responseString.split("<code>")[1].split("</code>")[0].trim() );
-                            if (code != 0) {
-                            	Log.e("code error", "failed code = " + code + " , 결제 액티비티 종료함.");
-                            	((Activity)mContext).finish();
-                            }
-                            else {
-                            	// cocos2d-x에 response를 보내서 클라이언트 상에 상품이 지급되도록 하자.
-                            	sendResultToCocos2dx(responseString, size, consumeIdx);
-                            }
-
-                        } catch (URISyntaxException e) {
-                            Log.e("http thread", e.getLocalizedMessage());
-                            e.printStackTrace();
-                        } catch (ClientProtocolException e) {
-                            Log.e("http thread", e.getLocalizedMessage());
-                            e.printStackTrace();
-                        } catch (IOException e) {
-                            Log.e("http thread", e.getLocalizedMessage());
-                            e.printStackTrace();
-                        }
+                    HttpResponse response = httpClient.execute(httpPost);
+                    String res = EntityUtils.toString(response.getEntity(), HTTP.UTF_8);
+                    
+                    int size = res.length();
+                    Log.e("response", res);
+                    Log.e("response", "size = " + size);
+                    
+                    // 여기서 response 복호화해야 한다!!!
+                    String responseString = Deobfuscated(res);
+                    Log.e("response", responseString);
+                    Log.e("response", "size = " + responseString.length());
+                    
+                    // code가 0이 아니면 액티비티 종료. (그리고 cocos2d-x 에서 재부팅 팝업창 띄움)
+                    int code = Integer.parseInt( responseString.split("<code>")[1].split("</code>")[0].trim() );
+                    if (code != 0) {
+                    	Log.e("code error", "failed code = " + code + " , 결제 액티비티 종료함.");
+                    	((Activity)mContext).finish();
                     }
-        	};
-        	thread.start();
-        }
-        
+                    else {
+                    	// cocos2d-x에 response를 보내서 클라이언트 상에 상품이 지급되도록 하자.
+                    	sendResultToCocos2dx(responseString, size, consumeIdx, friendKakaoId);
+                    }
+                    
+            	} catch (URISyntaxException e) {
+                    Log.e("http thread", e.getLocalizedMessage());
+                    e.printStackTrace();
+                } catch (UnsupportedEncodingException e) {
+        			// TODO Auto-generated catch block
+        			e.printStackTrace();
+        		} catch (ClientProtocolException e) {
+        			// TODO Auto-generated catch block
+        			e.printStackTrace();
+        		} catch (IOException e) {
+        			// TODO Auto-generated catch block
+        			e.printStackTrace();
+        		}
+            }
+        };
+        thread.start();
 
         return;
+	}
+	
+	
+	// 검증 결과의 code가 0이 아니면, 검증 단계에서 문제가 생겼으므로 재부팅 
+	public static void PurchaseError()
+	{
+		Log.e("purchase error", "결제 액티비티 종료함.");
+    	((Activity)mContext).finish();
 	}
 	
 	
@@ -431,7 +379,8 @@ public class InAppBilling extends Activity {
 	            Log.e("실패", "소진 실패");
 	        }
 	        
-	        if (type == 0) {
+	        // 최종 : 결제 액티비티를 종료하고 cocos2d-x 게임 화면으로 돌아간다.
+	        if (type == 0) { // (Splash 화면에서 소진 끝나고 게임을 시작하는 경우)
 	        	consumedCnt++;
 	        	Log.e("consumedCnt", consumedCnt + " , " + purchaseForConsume.size());
 	        	if (consumedCnt >= purchaseForConsume.size()) {
@@ -440,14 +389,21 @@ public class InAppBilling extends Activity {
 	        	}
 	        }
 	        else
+	        {
 	        	((Activity)mContext).finish();
+	        }
 	    }
 	};
 	
 	// 구매 '확인' 후, 결과를 받는 부분
 	protected void onActivityResult(int requestCode, int resultCode, Intent data) { 
 		Log.d("onActivityResult", requestCode + "," + resultCode + "," + data);
-	    if (mHelper == null) {
+		
+		Log.e("isBackBtnOk", isBackBtnOk+"");
+		if (!isBackBtnOk)
+			return;
+	    
+		if (mHelper == null) {
 	    	finish();
 	    	return;
 	    }
@@ -457,15 +413,22 @@ public class InAppBilling extends Activity {
 		    Log.d("onActivityResult", responseCode + "");
 		    
 		    if (responseCode != 0) {
-		    	Toast toast = Toast.makeText(mContext, "구매가 취소되었습니다.", Toast.LENGTH_SHORT);
-		    	toast.show();
-		    	finish();
+		    	if (isBackBtnOk)
+		    	{
+		    		Toast toast = Toast.makeText(mContext, "구매가 취소되었습니다.", Toast.LENGTH_SHORT);
+		    		toast.show();
+		    		setErrorFlag(false);
+		    		finish();
+		    	}
 		    }
 		    else {
+		    	Log.e("결제", "이제 결제를 처리합니다. isBackBtnOk = false 로 바뀝니다.");
+		    	isBackBtnOk = false;
 		    	// 결과를 mHelper를 통해 처리합니다.
 		    	if (!mHelper.handleActivityResult(requestCode, resultCode, data)) {
 		    		// 처리할 결과물이 아닐경우 이곳으로 빠져 기본처리를 하도록 합니다.
 		    		Log.e("에러", "정상적 상황이 아닌 경우");
+		    		setErrorFlag(false);
 		    		finish();
 		    		//super.onActivityResult(requestCode, resultCode, data);
 		    	}
@@ -477,21 +440,11 @@ public class InAppBilling extends Activity {
 	    else {
 	    	Toast toast = Toast.makeText(mContext, "구매가 취소되었습니다.", Toast.LENGTH_SHORT);
 	    	toast.show();
+	    	setErrorFlag(false);
 	    	finish();
 	    }
 	}
 
-	/*
-	// back button management
-	public boolean onKeyDown(int keyCode, KeyEvent event) {
-		switch(keyCode) {
-			case KeyEvent.KEYCODE_BACK:
-				Log.d("키키키", "백버튼 누름");
-				break;
-		}
-		return false;
-	}
-	*/
     
     @Override
     public void onDestroy() {
@@ -505,5 +458,16 @@ public class InAppBilling extends Activity {
     	
     	if (mService != null) // or mServiceConn?
     		unbindService(mServiceConn);
+    }
+    
+    
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        switch (keyCode) {
+        case KeyEvent.KEYCODE_BACK:  //버튼 반응없음(막기)
+        	Log.e("KEY DOWN", "안드로이드 백버튼 호출");
+            return true;
+        }
+        return super.onKeyDown(keyCode, event);
     }
 }

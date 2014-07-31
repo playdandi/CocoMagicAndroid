@@ -27,23 +27,45 @@ import org.cocos2dx.lib.Cocos2dxActivity;
 import org.cocos2dx.lib.Cocos2dxGLSurfaceView;
 
 import android.content.Intent;
-import android.content.pm.PackageInfo;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.KeyEvent;
 
 import com.google.android.gcm.GCMRegistrar;
+import com.kakao.cocos2dx.plugin.KakaoAndroid;
+import com.kakao.cocos2dx.plugin.KakaoAndroidInterface;
 
-public class CocoMagic extends Cocos2dxActivity{
-	
+public class CocoMagic extends Cocos2dxActivity implements KakaoAndroidInterface {
+ 	
 	static Variables v;
-	static String regId;
+	static String regId = "";
 	public static Cocos2dxActivity activity;
 	static int version = -1;
+	static PackageManager pm;
 	
     protected void onCreate(Bundle savedInstanceState){
-		super.onCreate(savedInstanceState);	
+		super.onCreate(savedInstanceState);
+		
+		pm = getPackageManager();
+		// 루팅 폰 감지
+		try {
+			Runtime.getRuntime().exec("su");
+			Log.e("루팅 여부", "루팅되어 있다. 위험!!!");
+			android.os.Process.killProcess(android.os.Process.myPid());
+		}
+		catch (Exception e) {
+			// 루팅이 안 되어 있을 때 exception (정상임)
+			Log.e("루팅 여부", "안 되어 있음~");
+		}
+		
+		// for kakao
+		KakaoAndroid.plugin = this;
+		KakaoAndroid.uri = getIntent().getData();
+		initJNIBridge();
 		
 		activity = this;
 		v = ((Variables)getApplicationContext());
@@ -62,14 +84,17 @@ public class CocoMagic extends Cocos2dxActivity{
 
     public void registerGCM()
     {
+    	Log.e("registerGCM", "registerGCM");
     	GCMRegistrar.checkDevice(this);
     	GCMRegistrar.checkManifest(this);
     	
     	regId = GCMRegistrar.getRegistrationId(this);
+    	Log.e("registerGCM", regId);
 
     	if (regId.equals(""))
     	{
     		GCMRegistrar.register(this, getResources().getString(R.string.project_id));
+    		Log.e("registerGCM", "registrar...");
     	}
     	else
     	{
@@ -94,6 +119,40 @@ public class CocoMagic extends Cocos2dxActivity{
     public void setRegistrationId(String id)
     {
     	regId = id;
+    }
+    
+    // 악성 앱 감지 함수
+    public static int CheckFuckingApp(String packageName)
+    {
+    	int result = 0;
+    		try {
+    			ApplicationInfo ai = pm.getApplicationInfo(packageName, PackageManager.GET_META_DATA);
+    			Log.e("악성어플 이름", ai.packageName);
+    			result = 1;
+    			//android.os.Process.killProcess(android.os.Process.myPid());
+    		}
+    		catch (NameNotFoundException e) {
+    			//Log.e("악성어플 없음", fuckingApps[i]);
+    			result = 0;
+    		}
+
+    	return result;
+    }
+    
+    // URL open 함수
+    public static void openURL(String type)
+    { 
+    	//Log.e("TYPE", type);
+    	Intent intent = new Intent(activity, Term.class);
+		intent.putExtra("type", type);
+		activity.startActivity(intent);
+    }
+    
+    public static void OpenNoticeURL(String url)
+    {
+    	Log.e("OpenNoticeURL", url);
+    	Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+    	activity.startActivity(intent);
     }
     
     // 결제 시작 함수
@@ -123,11 +182,59 @@ public class CocoMagic extends Cocos2dxActivity{
     {
         return version;
     }
-
+    
     
     static {
         System.loadLibrary("cocos2dcpp");
     }
     
-    //private native void verifyPayloadAndProvideItem(String data, String signature);
+    private native void initJNIBridge();
+ 	private native void sendMessageBridge(String target, String method, String params);
+    
+    
+ 	/*
+    @Override
+    protected void onResume() {
+    	super.onResume();
+    	KakaoAndroid.getInstance().resume(this);
+    }
+    */
+
+    // for kakao
+ 	@Override
+ 	public void sendMessage(final String target, final String method, final String params)
+ 	{
+ 		runOnGLThread(new Runnable() {
+ 			@Override
+ 			public void run() {
+ 				sendMessageBridge(target, method, params);
+ 			}
+ 		});
+ 	}
+ 	
+ 	@Override
+ 	public void kakaoCocos2dxExtension(String params)
+ 	{
+ 		//Logger.getInstance().i("kakaoCocos2dxExtension params: " + params);
+ 		try {
+ 			KakaoAndroid.getInstance().execute(CocoMagic.this, params);
+ 		} catch (Exception e) {
+ 			e.printStackTrace();
+ 		}
+ 	}
+ 	
+ 	@Override
+ 	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+ 		KakaoAndroid.getInstance().activityResult(this, requestCode, resultCode, data);
+ 	}
+ 	
+ 	@Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        switch (keyCode) {
+        case KeyEvent.KEYCODE_BACK:  //버튼 반응없음(막기)
+        	Log.e("KEY DOWN", "안드로이드 백버튼 호출");
+            return true;
+        }
+        return super.onKeyDown(keyCode, event);
+    }
 }
