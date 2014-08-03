@@ -113,6 +113,7 @@ public class InAppBilling extends Activity {
 				        // IAB 셋업이 완료되었습니다.
 				        Log.d("IAB", "Setup successful. (type = " + type + ")");
 				        
+				        /*
 				        String purchaseToken = "inapp:"+getPackageName()+":android.test.purchased";
 				        try {
 							mService.consumePurchase(3, getPackageName(),purchaseToken);
@@ -120,6 +121,7 @@ public class InAppBilling extends Activity {
 							// TODO Auto-generated catch block
 							e.printStackTrace();
 						}
+						*/
 				        
 				        if (type == 0) { // 앱을 처음 실행한 경우 (소진되지 않은 상품 확인용)
 				        	purchaseForConsume = new ArrayList<Purchase>();

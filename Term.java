@@ -32,13 +32,15 @@ import java.net.URL;
 
 import org.apache.http.client.ClientProtocolException;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Display;
 import android.view.KeyEvent;
+import android.view.WindowManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -49,7 +51,8 @@ public class Term extends Activity {
 	private WebView mWebView;
 	private String type;
  	
-    protected void onCreate(Bundle savedInstanceState) {
+    @SuppressLint("SetJavaScriptEnabled")
+	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.term);
 		
@@ -64,6 +67,9 @@ public class Term extends Activity {
 		Log.e("type", type);
 		
 		mWebView.getSettings().setJavaScriptEnabled(true);
+		mWebView.getSettings().setLoadWithOverviewMode(true);
+		mWebView.getSettings().setUseWideViewPort(true);
+		mWebView.setInitialScale(getScale());
 		mWebView.addJavascriptInterface(new MyJavaScriptInterface(this), "HtmlViewer");
 		mWebView.getSettings().setCacheMode(WebSettings.LOAD_NO_CACHE);
 
@@ -77,12 +83,22 @@ public class Term extends Activity {
 
 		String url = "";
 		if (type.compareTo("service") == 0)
-			url = "http://14.63.212.106/cogma/game/update/rule_service.html";
+			url = "http://14.63.200.217/cogma/game/update/rule_service.html";
 		else 
-			url = "http://14.63.212.106/cogma/game/update/rule_private.html";
+			url = "http://14.63.200.217/cogma/game/update/rule_private.html";
 		mWebView.loadUrl(url);
 
 	}
+    
+    public int getScale()
+    {
+        Display display = ((WindowManager)act.getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay();
+        int width = display.getWidth();
+        int PIC_WIDTH = mWebView.getRight() - mWebView.getLeft();
+        Double val = new Double(PIC_WIDTH) / new Double(width);
+        val = val * 100d;
+        return val.intValue();
+    }
     
     public String DownloadHtml(final String addr) {
 		StringBuilder html = new StringBuilder(); 
