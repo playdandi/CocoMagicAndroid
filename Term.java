@@ -64,7 +64,7 @@ public class Term extends Activity {
 		
 		Intent intent = getIntent();
 		type = intent.getStringExtra("type");
-		Log.e("type", type);
+		//Log.e("type", type);
 		
 		mWebView.getSettings().setJavaScriptEnabled(true);
 		mWebView.getSettings().setLoadWithOverviewMode(true);

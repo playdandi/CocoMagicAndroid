@@ -34,8 +34,8 @@ public class PushWakeLock {
     private static boolean isScreenLock;     
      
     static void acquireCpuWakeLock(Context context) {        
-        Log.e("PushWakeLock", "Acquiring cpu wake lock");        
-        Log.e("PushWakeLock", "wake sCpuWakeLock = " + sCpuWakeLock);        
+        //Log.e("PushWakeLock", "Acquiring cpu wake lock");        
+        //Log.e("PushWakeLock", "wake sCpuWakeLock = " + sCpuWakeLock);        
          
         if (sCpuWakeLock != null) {            
             return;        
@@ -50,8 +50,8 @@ public class PushWakeLock {
     }
      
     static void releaseCpuLock() {        
-        Log.e("PushWakeLock", "Releasing cpu wake lock");
-        Log.e("PushWakeLock", "relase sCpuWakeLock = " + sCpuWakeLock);
+        //Log.e("PushWakeLock", "Releasing cpu wake lock");
+        //Log.e("PushWakeLock", "relase sCpuWakeLock = " + sCpuWakeLock);
          
         if (sCpuWakeLock != null) {            
             sCpuWakeLock.release();            

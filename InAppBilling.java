@@ -70,7 +70,7 @@ public class InAppBilling extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		
-		Log.e("method", "onCreate start");
+		//Log.e("method", "onCreate start");
 		
 		mContext = this;
 		parentActivity = (CocoMagic)getParent();
@@ -102,7 +102,7 @@ public class InAppBilling extends Activity {
 				mHelper.startSetup(new IabHelper.OnIabSetupFinishedListener() {
 					public void onIabSetupFinished(IabResult result) {
 						if (!result.isSuccess()) {
-							Log.d("IABHelper", "Problem setting up In-app Billing: " + result);
+							//Log.d("IABHelper", "Problem setting up In-app Billing: " + result);
 				            return;
 						}
 						
@@ -111,7 +111,7 @@ public class InAppBilling extends Activity {
 				        	return;
 				 
 				        // IAB 셋업이 완료되었습니다.
-				        Log.d("IAB", "Setup successful. (type = " + type + ")");
+				        //Log.d("IAB", "Setup successful. (type = " + type + ")");
 				        
 				        /*
 				        String purchaseToken = "inapp:"+getPackageName()+":android.test.purchased";
@@ -150,7 +150,7 @@ public class InAppBilling extends Activity {
     // 소진되지 않은 상품이 있다면 서버를 통해 verify를 한 후 소진하도록 하자. 
  	IabHelper.QueryInventoryFinishedListener mGotInventoryListener = new IabHelper.QueryInventoryFinishedListener() {
  	    public void onQueryInventoryFinished(IabResult result, Inventory inventory) {
- 	        Log.d("callback", "Query inventory finished.");
+ 	        //Log.d("callback", "Query inventory finished.");
  	 
  	        // mHelper가 소거되었다면 종료
  	        if (mHelper == null) {
@@ -181,7 +181,7 @@ public class InAppBilling extends Activity {
  	       	for (int i = 0 ; i < skuList.size(); i++) {
  	       		Purchase p = inventory.getPurchase(skuList.get(i));
  	       		if (p != null) {
- 	       			Log.e("Query Inventory", skuList.get(i) + "소진 시도");
+ 	       			//Log.e("Query Inventory", skuList.get(i) + "소진 시도");
  	       			flag = true;
  	       			purchaseForConsume.add(p);
  	       			
@@ -193,7 +193,7 @@ public class InAppBilling extends Activity {
  	       		}
  	       	}
  	       	if (!flag) {
- 	       		Log.e("Query Inventory", "소진할 상품이 없음");
+ 	       		//Log.e("Query Inventory", "소진할 상품이 없음");
  	       		finish();
  	       		startGame();
  	       	}
@@ -203,7 +203,7 @@ public class InAppBilling extends Activity {
 	// 제품 구매 구글 결제 팝업창을 띄우는 함수
 	public void Buy() {
 		try {
-			Log.e("method", "Buy start (productId = " + productId + "), (kakaoId = " + kakaoId + "), (topazId = " + topazId + ")");
+			//Log.e("method", "Buy start (productId = " + productId + "), (kakaoId = " + kakaoId + "), (topazId = " + topazId + ")");
 			
 			// test
 			//String sku = "android.test.purchased";
@@ -218,10 +218,10 @@ public class InAppBilling extends Activity {
 	
 	IabHelper.OnIabPurchaseFinishedListener mPurchaseFinishedListener = new IabHelper.OnIabPurchaseFinishedListener() {
 	    public void onIabPurchaseFinished(IabResult result, Purchase purchase) {
-	        Log.e("Purchase Result ", "result: " + result + ", purchase: " + purchase);
+	        //Log.e("Purchase Result ", "result: " + result + ", purchase: " + purchase);
 
 	        if (result.isFailure()) {
-	        	Log.e("Purchase Result ", "구매 실패...");
+	        	//Log.e("Purchase Result ", "구매 실패...");
 	        	finish();
 	            return;
 	        }
@@ -242,11 +242,11 @@ public class InAppBilling extends Activity {
 		final String purchasedData = purchase.getOriginalJson();
         final String dataSignature = purchase.getSignature().replace("+",  "-");
         
-        Log.d("data", purchasedData);
-        Log.d("sign", dataSignature);
-        Log.d("topaz id", curTopazId+"");
-        Log.d("kakao id", kakaoId);
-        Log.d("friend kakao id", friendKakaoId);
+        //Log.d("data", purchasedData);
+        //Log.d("sign", dataSignature);
+        //Log.d("topaz id", curTopazId+"");
+        //Log.d("kakao id", kakaoId);
+        //Log.d("friend kakao id", friendKakaoId);
         
         purchased = purchase; // 전역 변수 임시 저장
 
@@ -261,9 +261,9 @@ public class InAppBilling extends Activity {
         final String a = p[1];
         final String urlString = p[2];
         
-        Log.e("PS", p[0]);
-        Log.e("a", p[1]);
-        Log.e("url", p[2]);
+        //Log.e("PS", p[0]);
+        //Log.e("a", p[1]);
+        //Log.e("url", p[2]);
         
         Thread thread = new Thread() {
             @Override
@@ -285,18 +285,18 @@ public class InAppBilling extends Activity {
                     String res = EntityUtils.toString(response.getEntity(), HTTP.UTF_8);
                     
                     int size = res.length();
-                    Log.e("response", res);
-                    Log.e("response", "size = " + size);
+                    //Log.e("response", res);
+                    //Log.e("response", "size = " + size);
                     
                     // 여기서 response 복호화해야 한다!!!
                     String responseString = Deobfuscated(res);
-                    Log.e("response", responseString);
-                    Log.e("response", "size = " + responseString.length());
+                    //Log.e("response", responseString);
+                    //Log.e("response", "size = " + responseString.length());
                     
                     // code가 0이 아니면 액티비티 종료. (그리고 cocos2d-x 에서 재부팅 팝업창 띄움)
                     int code = Integer.parseInt( responseString.split("<code>")[1].split("</code>")[0].trim() );
                     if (code != 0) {
-                    	Log.e("code error", "failed code = " + code + " , 결제 액티비티 종료함.");
+                    	//Log.e("code error", "failed code = " + code + " , 결제 액티비티 종료함.");
                     	((Activity)mContext).finish();
                     }
                     else {
@@ -305,7 +305,7 @@ public class InAppBilling extends Activity {
                     }
                     
             	} catch (URISyntaxException e) {
-                    Log.e("http thread", e.getLocalizedMessage());
+                    //Log.e("http thread", e.getLocalizedMessage());
                     e.printStackTrace();
                 } catch (UnsupportedEncodingException e) {
         			// TODO Auto-generated catch block
@@ -328,7 +328,7 @@ public class InAppBilling extends Activity {
 	// 검증 결과의 code가 0이 아니면, 검증 단계에서 문제가 생겼으므로 재부팅 
 	public static void PurchaseError()
 	{
-		Log.e("purchase error", "결제 액티비티 종료함.");
+		//Log.e("purchase error", "결제 액티비티 종료함.");
     	((Activity)mContext).finish();
 	}
 	
@@ -338,7 +338,7 @@ public class InAppBilling extends Activity {
 	// 검증이 성공적으로 되었다면, 소진한다.
 	public static void Consume(final int consumeIdx)
 	{
-		Log.e("CONSUME", "Type = " + type + " , consumeIdx = " + consumeIdx);
+		//Log.e("CONSUME", "Type = " + type + " , consumeIdx = " + consumeIdx);
     	((Activity)mContext).runOnUiThread(new Runnable() {
     		public void run() {
     			if (type == 0)
@@ -351,7 +351,7 @@ public class InAppBilling extends Activity {
 	
 	static IabHelper.OnConsumeFinishedListener mConsumeFinishedListener = new IabHelper.OnConsumeFinishedListener() {
 	    public void onConsumeFinished(Purchase purchase, IabResult result) {
-	        Log.d("Consumption finished", "Purchase: " + purchase + ", result: " + result);
+	        //Log.d("Consumption finished", "Purchase: " + purchase + ", result: " + result);
 	 
 	        // mHelper가 소거되었다면 종료
 	        if (mHelper == null) {
@@ -360,7 +360,7 @@ public class InAppBilling extends Activity {
 	        }
 	        
 	        if (result.isSuccess()) {
-	            Log.e("성공", "Consumption successful. Provisioning.");
+	            //Log.e("성공", "Consumption successful. Provisioning.");
 	            
 	            int topazCount = -1;
 				try {
@@ -378,13 +378,13 @@ public class InAppBilling extends Activity {
 		    	toast.show();
 	        }
 	        else {
-	            Log.e("실패", "소진 실패");
+	            //Log.e("실패", "소진 실패");
 	        }
 	        
 	        // 최종 : 결제 액티비티를 종료하고 cocos2d-x 게임 화면으로 돌아간다.
 	        if (type == 0) { // (Splash 화면에서 소진 끝나고 게임을 시작하는 경우)
 	        	consumedCnt++;
-	        	Log.e("consumedCnt", consumedCnt + " , " + purchaseForConsume.size());
+	        	//Log.e("consumedCnt", consumedCnt + " , " + purchaseForConsume.size());
 	        	if (consumedCnt >= purchaseForConsume.size()) {
 	        		((Activity)mContext).finish();
 	        		startGame();
@@ -399,9 +399,9 @@ public class InAppBilling extends Activity {
 	
 	// 구매 '확인' 후, 결과를 받는 부분
 	protected void onActivityResult(int requestCode, int resultCode, Intent data) { 
-		Log.d("onActivityResult", requestCode + "," + resultCode + "," + data);
+		//Log.d("onActivityResult", requestCode + "," + resultCode + "," + data);
 		
-		Log.e("isBackBtnOk", isBackBtnOk+"");
+		//Log.e("isBackBtnOk", isBackBtnOk+"");
 		if (!isBackBtnOk)
 			return;
 	    
@@ -412,7 +412,7 @@ public class InAppBilling extends Activity {
 	 
 	    if (requestCode == 1001) {
 	    	int responseCode = data.getIntExtra("RESPONSE_CODE", 0);
-		    Log.d("onActivityResult", responseCode + "");
+		    //Log.d("onActivityResult", responseCode + "");
 		    
 		    if (responseCode != 0) {
 		    	if (isBackBtnOk)
@@ -424,18 +424,18 @@ public class InAppBilling extends Activity {
 		    	}
 		    }
 		    else {
-		    	Log.e("결제", "이제 결제를 처리합니다. isBackBtnOk = false 로 바뀝니다.");
+		    	//Log.e("결제", "이제 결제를 처리합니다. isBackBtnOk = false 로 바뀝니다.");
 		    	isBackBtnOk = false;
 		    	// 결과를 mHelper를 통해 처리합니다.
 		    	if (!mHelper.handleActivityResult(requestCode, resultCode, data)) {
 		    		// 처리할 결과물이 아닐경우 이곳으로 빠져 기본처리를 하도록 합니다.
-		    		Log.e("에러", "정상적 상황이 아닌 경우");
+		    		//Log.e("에러", "정상적 상황이 아닌 경우");
 		    		setErrorFlag(false);
 		    		finish();
 		    		//super.onActivityResult(requestCode, resultCode, data);
 		    	}
 		    	else {
-		    		Log.d("onActivityResult", "onActivityResult handled by IABUtil.");
+		    		//Log.d("onActivityResult", "onActivityResult handled by IABUtil.");
 		    	}
 		    }
 	    }
@@ -452,7 +452,7 @@ public class InAppBilling extends Activity {
     public void onDestroy() {
     	super.onDestroy();
     	
-    	Log.e("method", "onDestory");
+    	//Log.e("method", "onDestory");
     	
     	if (mHelper != null)
     		mHelper.dispose();
@@ -467,7 +467,7 @@ public class InAppBilling extends Activity {
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         switch (keyCode) {
         case KeyEvent.KEYCODE_BACK:  //버튼 반응없음(막기)
-        	Log.e("KEY DOWN", "안드로이드 백버튼 호출");
+        	//Log.e("KEY DOWN", "안드로이드 백버튼 호출");
             return true;
         }
         return super.onKeyDown(keyCode, event);

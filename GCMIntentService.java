@@ -65,14 +65,14 @@ private static void generateNotification(Context context, String message)
  
 	@Override
 	protected void onRegistered(Context context, String reg_id) {
-		Log.e("키를 등록합니다.(GCM INTENTSERVICE)", reg_id);
+		//Log.e("키를 등록합니다.(GCM INTENTSERVICE)", reg_id);
 		Variables v = ((Variables)getApplicationContext());
 		v.setRegistrationId(reg_id);
 	}
  
 	@Override
 	protected void onUnregistered(Context arg0, String arg1) {
-		Log.e("키를 제거합니다.(GCM INTENTSERVICE)","제거되었습니다.");
+		//Log.e("키를 제거합니다.(GCM INTENTSERVICE)","제거되었습니다.");
 	}
 	
 	/**

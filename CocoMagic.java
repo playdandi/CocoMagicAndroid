@@ -54,12 +54,12 @@ public class CocoMagic extends Cocos2dxActivity implements KakaoAndroidInterface
 		// 루팅 폰 감지
 		try {
 			Runtime.getRuntime().exec("su");
-			Log.e("루팅 여부", "루팅되어 있다. 위험!!!");
+			//Log.e("루팅 여부", "루팅되어 있다. 위험!!!");
 			android.os.Process.killProcess(android.os.Process.myPid());
 		}
 		catch (Exception e) {
 			// 루팅이 안 되어 있을 때 exception (정상임)
-			Log.e("루팅 여부", "안 되어 있음~");
+			//Log.e("루팅 여부", "안 되어 있음~");
 		}
 		
 		// for kakao
@@ -84,21 +84,21 @@ public class CocoMagic extends Cocos2dxActivity implements KakaoAndroidInterface
 
     public void registerGCM()
     {
-    	Log.e("registerGCM", "registerGCM");
+    	//Log.e("registerGCM", "registerGCM");
     	GCMRegistrar.checkDevice(this);
     	GCMRegistrar.checkManifest(this);
     	
     	regId = GCMRegistrar.getRegistrationId(this);
-    	Log.e("registerGCM", regId);
+    	//Log.e("registerGCM", regId);
 
     	if (regId.equals(""))
     	{
     		GCMRegistrar.register(this, getResources().getString(R.string.project_id));
-    		Log.e("registerGCM", "registrar...");
+    		//Log.e("registerGCM", "registrar...");
     	}
     	else
     	{
-    		Log.e("id", regId);
+    		//Log.e("id", regId);
     		v.setRegistrationId(regId);
     	}
     }
@@ -127,7 +127,7 @@ public class CocoMagic extends Cocos2dxActivity implements KakaoAndroidInterface
     	int result = 0;
     		try {
     			ApplicationInfo ai = pm.getApplicationInfo(packageName, PackageManager.GET_META_DATA);
-    			Log.e("악성어플 이름", ai.packageName);
+    			//Log.e("악성어플 이름", ai.packageName);
     			result = 1;
     			//android.os.Process.killProcess(android.os.Process.myPid());
     		}
@@ -150,7 +150,7 @@ public class CocoMagic extends Cocos2dxActivity implements KakaoAndroidInterface
     
     public static void OpenNoticeURL(String url)
     {
-    	Log.e("OpenNoticeURL", url);
+    	//Log.e("OpenNoticeURL", url);
     	Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
     	activity.startActivity(intent);
     }
@@ -232,7 +232,7 @@ public class CocoMagic extends Cocos2dxActivity implements KakaoAndroidInterface
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         switch (keyCode) {
         case KeyEvent.KEYCODE_BACK:  //버튼 반응없음(막기)
-        	Log.e("KEY DOWN", "안드로이드 백버튼 호출");
+        	//Log.e("KEY DOWN", "안드로이드 백버튼 호출");
             return true;
         }
         return super.onKeyDown(keyCode, event);
