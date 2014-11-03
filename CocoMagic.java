@@ -26,6 +26,7 @@ package com.playDANDi.CocoMagic;
 import org.cocos2dx.lib.Cocos2dxActivity;
 import org.cocos2dx.lib.Cocos2dxGLSurfaceView;
 
+import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
@@ -49,29 +50,19 @@ public class CocoMagic extends Cocos2dxActivity implements KakaoAndroidInterface
 	
     protected void onCreate(Bundle savedInstanceState){
 		super.onCreate(savedInstanceState);
-		
+
 		pm = getPackageManager();
-		// 루팅 폰 감지
-		try {
-			Runtime.getRuntime().exec("su");
-			//Log.e("루팅 여부", "루팅되어 있다. 위험!!!");
-			android.os.Process.killProcess(android.os.Process.myPid());
-		}
-		catch (Exception e) {
-			// 루팅이 안 되어 있을 때 exception (정상임)
-			//Log.e("루팅 여부", "안 되어 있음~");
-		}
-		
-		// for kakao
-		KakaoAndroid.plugin = this;
-		KakaoAndroid.uri = getIntent().getData();
-		initJNIBridge();
 		
 		activity = this;
 		v = ((Variables)getApplicationContext());
 		
 		// GCM push 관련 registration  
 		registerGCM();
+		
+		// for kakao
+		KakaoAndroid.plugin = this;
+		KakaoAndroid.uri = getIntent().getData();
+		initJNIBridge();
 		
 		// version name 저장해 두기.
 		try {
@@ -121,20 +112,38 @@ public class CocoMagic extends Cocos2dxActivity implements KakaoAndroidInterface
     	regId = id;
     }
     
+    // 루팅 폰 감지 함수
+    public static boolean IsRootingPhone()
+    {
+    	boolean result = false;
+    	try {
+			Runtime.getRuntime().exec("su");
+			// 루팅 폰!
+			result = true;
+			//android.os.Process.killProcess(android.os.Process.myPid());
+		}
+		catch (Exception e) {
+			// 루팅이 안 되어 있을 때 exception (정상임)
+			result = false;
+		}
+
+    	return result;
+    }
+    
     // 악성 앱 감지 함수
     public static int CheckFuckingApp(String packageName)
     {
     	int result = 0;
-    		try {
-    			ApplicationInfo ai = pm.getApplicationInfo(packageName, PackageManager.GET_META_DATA);
-    			//Log.e("악성어플 이름", ai.packageName);
-    			result = 1;
-    			//android.os.Process.killProcess(android.os.Process.myPid());
-    		}
-    		catch (NameNotFoundException e) {
-    			//Log.e("악성어플 없음", fuckingApps[i]);
-    			result = 0;
-    		}
+    	try {
+    		ApplicationInfo ai = pm.getApplicationInfo(packageName, PackageManager.GET_META_DATA);
+    		//Log.e("악성어플 이름", ai.packageName);
+    		result = 1;
+    		//android.os.Process.killProcess(android.os.Process.myPid());
+    	}
+    	catch (NameNotFoundException e) {
+    		//Log.e("악성어플 없음", fuckingApps[i]);
+    		result = 0;
+    	}
 
     	return result;
     }
@@ -142,7 +151,6 @@ public class CocoMagic extends Cocos2dxActivity implements KakaoAndroidInterface
     // URL open 함수
     public static void openURL(String type)
     { 
-    	//Log.e("TYPE", type);
     	Intent intent = new Intent(activity, Term.class);
 		intent.putExtra("type", type);
 		activity.startActivity(intent);
@@ -150,7 +158,6 @@ public class CocoMagic extends Cocos2dxActivity implements KakaoAndroidInterface
     
     public static void OpenNoticeURL(String url)
     {
-    	//Log.e("OpenNoticeURL", url);
     	Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
     	activity.startActivity(intent);
     }

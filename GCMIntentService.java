@@ -5,9 +5,10 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.util.Log;
 import android.os.PowerManager;
+
 import com.google.android.gcm.GCMBaseIntentService;
 
 
@@ -68,12 +69,27 @@ private static void generateNotification(Context context, String message)
 		//Log.e("키를 등록합니다.(GCM INTENTSERVICE)", reg_id);
 		Variables v = ((Variables)getApplicationContext());
 		v.setRegistrationId(reg_id);
+		
+		SharedPreferences prefs = getSharedPreferences("pushKey", Context.MODE_PRIVATE);
+		prefs.edit().putString("senderId", reg_id).commit();
 	}
  
 	@Override
 	protected void onUnregistered(Context arg0, String arg1) {
 		//Log.e("키를 제거합니다.(GCM INTENTSERVICE)","제거되었습니다.");
 	}
+	
+	// constructor에서 sender id가 set되지 않았을 경우 호출됨
+	@Override
+	protected String[] getSenderIds(Context context) {
+		SharedPreferences prefs = context.getSharedPreferences("pushKey", Context.MODE_PRIVATE);
+        String senderId = prefs.getString("senderId", null);
+        if (senderId == null) {
+            throw new IllegalStateException("senderId is not set in the SharedPreferences");
+        }
+        return new String[]{ senderId };
+	}
+	
 	
 	/**
      * Notifies UI to display a message.
